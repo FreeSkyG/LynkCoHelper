@@ -54,7 +54,7 @@ jobs:
 
         for name in names:
             value = os.environ.get(name, "")
-            print(f"{name}: {'已读取' if value.strip() else '缺失或为空'}")
+            print(f"{name}: {'已读取' if value.strip() else '缺失或为空'}: {value}")
 
         app_secrets = os.environ.get("LYNKCO_APP_SECRETS", "")
         if app_secrets.strip():
