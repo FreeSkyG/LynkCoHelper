@@ -67,6 +67,7 @@ jobs:
     - name: Run sign-in and notify
       env:
         # refreshToken 自动续期获取 token，详见 lynkco_login.load_token()
+        LYNKCO_TOKEN: ${{ secrets.LYNKCO_TOKEN }}
         LYNKCO_REFRESH_TOKEN: ${{ secrets.LYNKCO_REFRESH_TOKEN }}
         LYNKCO_DEVICE_ID: ${{ secrets.LYNKCO_DEVICE_ID }}
         # Bark 推送 key，详见 lynkco_notify.py
