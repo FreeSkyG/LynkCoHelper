@@ -34,6 +34,35 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         if [ -f ./LynkCoHelper/requirements.txt ]; then pip install -r ./LynkCoHelper/requirements.txt; fi
+    - name: 检查生成的 env.json
+      run: |
+        python - <<'PY'
+        import json
+        from pathlib import Path
+
+        path = Path("./LynkCoHelper/env.json")
+        print(f"env.json 存在: {path.is_file()}")
+
+        if path.is_file():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                print(f"JSON 格式正确: {isinstance(data, dict)}")
+                print(f"顶层字段名: {list(data.keys())}")
+
+                secrets = data.get("secrets", {})
+                print(f"secrets 是字典: {isinstance(secrets, dict)}")
+                if isinstance(secrets, dict):
+                    for key in (
+                        "nativeAppKey",
+                        "nativeAppSecret",
+                        "nativeAppCode",
+                        "loginAppCode",
+                    ):
+                        value = secrets.get(key)
+                        print(f"{key}: {'存在' if value else '缺失或为空'}")
+            except Exception as exc:
+                print(f"读取或解析失败: {type(exc).__name__}")
+        PY
     - name: 检查领克认证变量
       env:
         LYNKCO_TOKEN: ${{ secrets.LYNKCO_TOKEN }}
