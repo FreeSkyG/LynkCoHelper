@@ -34,133 +34,45 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         if [ -f ./LynkCoHelper/requirements.txt ]; then pip install -r ./LynkCoHelper/requirements.txt; fi
-    - name: Diagnose env.json location
-      run: |
-        echo "=== Current directory ==="
-        pwd
-
-        echo "=== Expected file ==="
-        ls -la ./LynkCoHelper/env.json || true
-
-        echo "=== Search generated file ==="
-        find "$GITHUB_WORKSPACE" -type f -name "env.json" -print
-    - name: 检查生成的 env.json
+    - name: Generate env.json from GitHub Secrets
+      env:
+        LYNKCO_TOKEN: ${{ secrets.LYNKCO_TOKEN }}
+        LYNKCO_REFRESH_TOKEN: ${{ secrets.LYNKCO_REFRESH_TOKEN }}
+        LYNKCO_DEVICE_ID: ${{ secrets.LYNKCO_DEVICE_ID }}
+        LYNKCO_APP_SECRETS: ${{ secrets.LYNKCO_APP_SECRETS }}
       run: |
         python - <<'PY'
         import json
+        import os
         from pathlib import Path
 
-        path = Path("./LynkCoHelper/env.json")
-        print(f"env.json 存在: {path.is_file()}")
-
-        if path.is_file():
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                print(f"JSON 格式正确: {isinstance(data, dict)}")
-                print(f"顶层字段名: {list(data.keys())}")
-
-                secrets = data.get("secrets", {})
-                print(f"secrets 是字典: {isinstance(secrets, dict)}")
-                if isinstance(secrets, dict):
-                    for key in (
-                        "nativeAppKey",
-                        "nativeAppSecret",
-                        "nativeAppCode",
-                        "loginAppCode",
-                    ):
-                        value = secrets.get(key)
-                        print(f"{key}: {'存在' if value else '缺失或为空'}")
-            except Exception as exc:
-                print(f"读取或解析失败: {type(exc).__name__}")
-        PY
-    - name: 检查领克认证变量
-      env:
-        LYNKCO_TOKEN: ${{ secrets.LYNKCO_TOKEN }}
-        LYNKCO_REFRESH_TOKEN: ${{ secrets.LYNKCO_REFRESH_TOKEN }}
-        LYNKCO_DEVICE_ID: ${{ secrets.LYNKCO_DEVICE_ID }}
-        LYNKCO_APP_SECRETS: ${{ secrets.LYNKCO_APP_SECRETS }}
-      run: |
-        python - <<'PY'
-        import os
-        import json
-
-        names = [
-            "LYNKCO_TOKEN",
-            "LYNKCO_REFRESH_TOKEN",
-            "LYNKCO_DEVICE_ID",
-            "LYNKCO_APP_SECRETS",
-        ]
-
-        for name in names:
-            value = os.environ.get(name, "")
-            print(f"{name}: {'已读取' if value.strip() else '缺失或为空'}: {value}")
-
-        app_secrets = os.environ.get("LYNKCO_APP_SECRETS", "")
-        if app_secrets.strip():
-            try:
-                data = json.loads(app_secrets)
-                print(f"LYNKCO_APP_SECRETS JSON格式: 正确（{type(data).__name__}）")
-            except (ValueError, TypeError):
-                print("LYNKCO_APP_SECRETS JSON格式: 错误或不是JSON")
-        PY
-    - name: Validate LynkCo configuration
-      env:
-        LYNKCO_TOKEN: ${{ secrets.LYNKCO_TOKEN }}
-        LYNKCO_REFRESH_TOKEN: ${{ secrets.LYNKCO_REFRESH_TOKEN }}
-        LYNKCO_DEVICE_ID: ${{ secrets.LYNKCO_DEVICE_ID }}
-        LYNKCO_APP_SECRETS: ${{ secrets.LYNKCO_APP_SECRETS }}
-      run: |
-        python - <<'PY'
-        import json
-        import os
-        import sys
-
-        names = [
-            "LYNKCO_TOKEN",
-            "LYNKCO_REFRESH_TOKEN",
-            "LYNKCO_DEVICE_ID",
-            "LYNKCO_APP_SECRETS",
-        ]
-
-        missing = []
-        for name in names:
-            value = os.environ.get(name, "")
-            present = bool(value.strip())
-            print(f"{name}: {'已配置' if present else '缺失或为空'}")
-            if not present:
-                missing.append(name)
-
-        raw = os.environ.get("LYNKCO_APP_SECRETS", "")
-        required = (
-            "nativeAppKey",
-            "nativeAppSecret",
-            "nativeAppCode",
-            "loginAppCode",
+        app_secrets = json.loads(
+            os.environ["LYNKCO_APP_SECRETS"]
         )
 
-        if raw.strip():
-            try:
-                data = json.loads(raw)
-            except (ValueError, TypeError):
-                print("LYNKCO_APP_SECRETS: JSON 解析失败")
-                sys.exit(1)
+        config = {
+            "user": {
+                "token": os.environ["LYNKCO_TOKEN"],
+                "refreshToken": os.environ["LYNKCO_REFRESH_TOKEN"],
+                "deviceId": os.environ["LYNKCO_DEVICE_ID"],
+            },
+           "notify": {
+              "barkKey": "H9Adg6SzPT7mJJdtK9yNs4",
+              "feiShuWebhook": "",
+              "dingTalkWebhook": "",
+              "weComWebhook": ""
+            },
+            **app_secrets,
+        }
 
-            if not isinstance(data, dict):
-                print("LYNKCO_APP_SECRETS: 顶层必须是 JSON 对象")
-                sys.exit(1)
+        path = Path("LynkCoHelper/env.json")
+        path.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        path.chmod(0o600)
 
-            print("LYNKCO_APP_SECRETS: JSON 格式正确")
-            for key in required:
-                present = isinstance(data.get(key), str) and bool(data[key].strip())
-                print(f"字段 {key}: {'已配置' if present else '缺失或为空'}")
-                if not present:
-                    missing.append(f"LYNKCO_APP_SECRETS.{key}")
-
-        if missing:
-            print("配置检查未通过，请修复缺失项后重试。")
-            sys.exit(1)
-
-        print("配置完整性检查通过。")
+        print("env.json 已生成，未输出任何凭据。")
         PY
     - name: Run sign-in and notify
       env:
