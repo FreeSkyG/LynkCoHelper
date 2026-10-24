@@ -103,6 +103,65 @@ jobs:
             except (ValueError, TypeError):
                 print("LYNKCO_APP_SECRETS JSON格式: 错误或不是JSON")
         PY
+    - name: Validate LynkCo configuration
+      env:
+        LYNKCO_TOKEN: ${{ secrets.LYNKCO_TOKEN }}
+        LYNKCO_REFRESH_TOKEN: ${{ secrets.LYNKCO_REFRESH_TOKEN }}
+        LYNKCO_DEVICE_ID: ${{ secrets.LYNKCO_DEVICE_ID }}
+        LYNKCO_APP_SECRETS: ${{ secrets.LYNKCO_APP_SECRETS }}
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        import sys
+
+        names = [
+            "LYNKCO_TOKEN",
+            "LYNKCO_REFRESH_TOKEN",
+            "LYNKCO_DEVICE_ID",
+            "LYNKCO_APP_SECRETS",
+        ]
+
+        missing = []
+        for name in names:
+            value = os.environ.get(name, "")
+            present = bool(value.strip())
+            print(f"{name}: {'已配置' if present else '缺失或为空'}")
+            if not present:
+                missing.append(name)
+
+        raw = os.environ.get("LYNKCO_APP_SECRETS", "")
+        required = (
+            "nativeAppKey",
+            "nativeAppSecret",
+            "nativeAppCode",
+            "loginAppCode",
+        )
+
+        if raw.strip():
+            try:
+                data = json.loads(raw)
+            except (ValueError, TypeError):
+                print("LYNKCO_APP_SECRETS: JSON 解析失败")
+                sys.exit(1)
+
+            if not isinstance(data, dict):
+                print("LYNKCO_APP_SECRETS: 顶层必须是 JSON 对象")
+                sys.exit(1)
+
+            print("LYNKCO_APP_SECRETS: JSON 格式正确")
+            for key in required:
+                present = isinstance(data.get(key), str) and bool(data[key].strip())
+                print(f"字段 {key}: {'已配置' if present else '缺失或为空'}")
+                if not present:
+                    missing.append(f"LYNKCO_APP_SECRETS.{key}")
+
+        if missing:
+            print("配置检查未通过，请修复缺失项后重试。")
+            sys.exit(1)
+
+        print("配置完整性检查通过。")
+        PY
     - name: Run sign-in and notify
       env:
         # refreshToken 自动续期获取 token，详见 lynkco_login.load_token()
